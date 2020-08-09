@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -101,7 +102,7 @@ func (repo *GitHubRepository) GetLatestRelease(vrange string, re *regexp.Regexp)
 }
 
 func (repo *GitHubRepository) CreateRelease(changelog string, newVersion *semver.Version, prerelease bool, branch, sha string) error {
-	tag := fmt.Sprintf("v%s", newVersion.String())
+	tag := fmt.Sprintf("%s-v%s", os.Getenv("pkg_name"), newVersion.String())
 	isPrerelease := prerelease || newVersion.Prerelease() != ""
 
 	if branch != sha {
