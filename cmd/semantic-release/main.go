@@ -73,12 +73,16 @@ func cliHandler(c *cli.Context) error {
 	logger.Println("getting default branch...")
 	defaultBranch, isPrivate, err := repo.GetInfo()
 	exitIfError(err)
+
 	logger.Println("found default branch: " + defaultBranch)
 	if isPrivate {
 		logger.Println("repo is private")
 	}
 
 	currentBranch := ci.GetCurrentBranch()
+	if conf.CurrentBranch != "" {
+		currentBranch = conf.CurrentBranch
+	}
 	if currentBranch == "" {
 		exitIfError(fmt.Errorf("current branch not found"))
 	}
@@ -94,6 +98,9 @@ func cliHandler(c *cli.Context) error {
 	}
 
 	currentSha := ci.GetCurrentSHA()
+	if conf.CurrentBranch != "" {
+		currentSha = conf.CurrentBranch
+	}
 	logger.Println("found current sha: " + currentSha)
 
 	if !conf.Noci {
@@ -113,7 +120,11 @@ func cliHandler(c *cli.Context) error {
 		logger.Printf("getting latest release matching %s...", match)
 		matchRegex = regexp.MustCompile("^" + match)
 	}
-	release, err := repo.GetLatestRelease(conf.BetaRelease.MaintainedVersion, matchRegex)
+	lastVersionHotfix := ""
+	if conf.CurrentBranch != conf.BaseBranch {
+		lastVersionHotfix = strings.Trim(conf.CurrentBranch, conf.Pkgname+"-branch-v")
+	}
+	release, err := repo.GetLatestRelease(conf.BetaRelease.MaintainedVersion, matchRegex, conf.Pkgname, lastVersionHotfix)
 	exitIfError(err)
 	logger.Println("found version: " + release.Version.String())
 
@@ -128,14 +139,15 @@ func cliHandler(c *cli.Context) error {
 	logger.Println("calculating new version...")
 	newVer := semrel.GetNewVersion(conf, commits, release)
 	if newVer == nil {
-		if conf.AllowNoChanges {
-			logger.Println("no change")
-			os.Exit(0)
+		if conf.CurrentBranch != conf.BaseBranch {
+			newVerMinor := release.Version.IncPatch()
+			newVer = &newVerMinor
 		} else {
-			exitIfError(errors.New("no change"), 65)
+			newVerMinor := release.Version.IncMinor()
+			log.Println(newVerMinor)
+			newVer = &newVerMinor
 		}
 	}
-	logger.Println("new version: " + newVer.String())
 
 	if conf.Dry {
 		exitIfError(errors.New("DRY RUN: no release was created"), 65)
@@ -147,8 +159,22 @@ func cliHandler(c *cli.Context) error {
 		exitIfError(ioutil.WriteFile(conf.Changelog, []byte(changelog), 0644))
 	}
 
+	SHA := ""
+	foundCommit := false
+	if len(commits) > 0 {
+		SHA = commits[0].SHA
+		for _, j := range commits {
+			if j.SHA == conf.CommitHash {
+				SHA = j.SHA
+				foundCommit = true
+			}
+		}
+	}
+	if foundCommit == false {
+		exitIfError(errors.New("Commit not found"), 65)
+	}
 	logger.Println("creating release...")
-	exitIfError(repo.CreateRelease(changelog, newVer, conf.Prerelease, currentBranch, currentSha))
+	exitIfError(repo.CreateRelease(changelog, newVer, conf.Prerelease, currentBranch, currentSha, SHA, conf.Pkgname))
 
 	if conf.Ghr {
 		exitIfError(ioutil.WriteFile(".ghr", []byte(fmt.Sprintf("-u %s -r %s v%s", repo.Owner(), repo.Repo(), newVer.String())), 0644))

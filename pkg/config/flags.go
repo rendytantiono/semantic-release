@@ -78,9 +78,20 @@ var CliFlags = []cli.Flag{
 		Name:  "allow-initial-development-versions",
 		Usage: "semantic-release will start your initial development release at 0.1.0",
 	},
-	&cli.BoolFlag{
-		Name:  "allow-no-changes",
-		Value: false,
-		Usage: "Exit with code 0 if no changes are found, useful if semantic-release is automatically run",
+	&cli.StringFlag{
+		Name:  "base_branch",
+		Usage: "base branch of your service",
+	},
+	&cli.StringFlag{
+		Name:  "current_branch",
+		Usage: "current branch of your service",
+	},
+	&cli.StringFlag{
+		Name:  "commit_hash",
+		Usage: "commit_hash of your service",
+	},
+	&cli.StringFlag{
+		Name:  "pkg_name",
+		Usage: "pkg_name of your service",
 	},
 }

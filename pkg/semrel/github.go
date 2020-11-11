@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -48,7 +49,12 @@ func (repo *GitHubRepository) GetInfo() (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	return r.GetDefaultBranch(), r.GetPrivate(), nil
+	branch := r.GetDefaultBranch()
+	if os.Getenv("branch_name") != "" {
+		branch = os.Getenv("branch_name")
+	}
+
+	return branch, r.GetPrivate(), nil
 }
 
 func (repo *GitHubRepository) GetCommits(sha string) ([]*Commit, error) {
@@ -67,7 +73,7 @@ func (repo *GitHubRepository) GetCommits(sha string) ([]*Commit, error) {
 	return ret, nil
 }
 
-func (repo *GitHubRepository) GetLatestRelease(vrange string, re *regexp.Regexp) (*Release, error) {
+func (repo *GitHubRepository) GetLatestRelease(vrange string, re *regexp.Regexp, pkg_name, lastVersionHotfix string) (*Release, error) {
 	allReleases := make(Releases, 0)
 	opts := &github.ReferenceListOptions{Type: "tags", ListOptions: github.ListOptions{PerPage: 100}}
 	for {
@@ -80,6 +86,9 @@ func (repo *GitHubRepository) GetLatestRelease(vrange string, re *regexp.Regexp)
 		}
 		for _, r := range refs {
 			tag := strings.TrimPrefix(r.GetRef(), "refs/tags/")
+			if strings.Contains(tag, pkg_name+"-release-") {
+				tag = strings.TrimPrefix(tag, pkg_name+"-release-")
+			}
 			if re != nil && !re.MatchString(tag) {
 				continue
 			}
@@ -87,6 +96,7 @@ func (repo *GitHubRepository) GetLatestRelease(vrange string, re *regexp.Regexp)
 				continue
 			}
 			version, err := semver.NewVersion(tag)
+
 			if err != nil {
 				continue
 			}
@@ -98,36 +108,50 @@ func (repo *GitHubRepository) GetLatestRelease(vrange string, re *regexp.Regexp)
 		opts.Page = resp.NextPage
 	}
 
-	return allReleases.GetLatestRelease(vrange)
+	return allReleases.GetLatestRelease(vrange, lastVersionHotfix)
 }
 
-func (repo *GitHubRepository) CreateRelease(changelog string, newVersion *semver.Version, prerelease bool, branch, sha string) error {
-	tag := fmt.Sprintf("%s-v%s", os.Getenv("pkg_name"), newVersion.String())
-	isPrerelease := prerelease || newVersion.Prerelease() != ""
+func (repo *GitHubRepository) CreateRelease(changelog string, newVersion *semver.Version, prerelease bool, branch, sha string, currentSHA, pkgName string) error {
+	tag := fmt.Sprintf("%s-release-v%s", pkgName, newVersion.String())
+	//tag := fmt.Sprintf("v%s", newVersion.String())
 
-	if branch != sha {
-		ref := "refs/tags/" + tag
+	isPrerelease := prerelease || newVersion.Prerelease() != ""
+	//if branch != sha {
+	ref := "refs/tags/" + tag
+	tagOpts := &github.Reference{
+		Ref:    &ref,
+		Object: &github.GitObject{SHA: &currentSHA},
+	}
+	_, _, err := repo.Client.Git.CreateRef(repo.Ctx, repo.owner, repo.repo, tagOpts)
+	if err != nil {
+		return err
+	}
+	//}
+	opts := &github.RepositoryRelease{
+		TagName:         &tag,
+		Name:            &tag,
+		TargetCommitish: &currentSHA,
+		Body:            &changelog,
+		Prerelease:      &isPrerelease,
+	}
+	_, _, err = repo.Client.Repositories.CreateRelease(repo.Ctx, repo.owner, repo.repo, opts)
+	if err != nil {
+		return err
+	}
+	if branch == "master" {
+		tag = fmt.Sprintf("%s-branch-v%s", pkgName, newVersion.String())
+		log.Println("Creating branch")
+		ref := "refs/heads/" + tag
 		tagOpts := &github.Reference{
 			Ref:    &ref,
-			Object: &github.GitObject{SHA: &sha},
+			Object: &github.GitObject{SHA: &currentSHA},
 		}
-		_, _, err := repo.Client.Git.CreateRef(repo.Ctx, repo.owner, repo.repo, tagOpts)
+		_, _, err = repo.Client.Git.CreateRef(repo.Ctx, repo.owner, repo.repo, tagOpts)
 		if err != nil {
 			return err
 		}
 	}
 
-	opts := &github.RepositoryRelease{
-		TagName:         &tag,
-		Name:            &tag,
-		TargetCommitish: &branch,
-		Body:            &changelog,
-		Prerelease:      &isPrerelease,
-	}
-	_, _, err := repo.Client.Repositories.CreateRelease(repo.Ctx, repo.owner, repo.repo, opts)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

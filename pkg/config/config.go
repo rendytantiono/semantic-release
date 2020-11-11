@@ -25,10 +25,13 @@ type (
 		BetaRelease                     *BetaRelease
 		Match                           string
 		AllowInitialDevelopmentVersions bool
-		AllowNoChanges                  bool
 		GitLab                          bool
 		GitLabBaseURL                   string
 		GitLabProjectID                 string
+		BaseBranch                      string
+		CurrentBranch                   string
+		CommitHash                      string
+		Pkgname                         string
 	}
 
 	BetaRelease struct {
@@ -52,11 +55,14 @@ func NewConfig(c *cli.Context) (*Config, error) {
 		TravisCom:                       c.Bool("travis-com"),
 		Match:                           c.String("match"),
 		AllowInitialDevelopmentVersions: c.Bool("allow-initial-development-versions"),
-		AllowNoChanges:                  c.Bool("allow-no-changes"),
 		GitLab:                          c.Bool("gitlab"),
 		GitLabBaseURL:                   c.String("gitlab-base-url"),
 		GitLabProjectID:                 c.String("gitlab-project-id"),
 		BetaRelease:                     &BetaRelease{},
+		BaseBranch:                      c.String("base_branch"),
+		CurrentBranch:                   c.String("current_branch"),
+		CommitHash:                      c.String("commit_hash"),
+		Pkgname:                         c.String("pkg_name"),
 	}
 
 	f, err := os.OpenFile(".semrelrc", os.O_RDONLY, 0)

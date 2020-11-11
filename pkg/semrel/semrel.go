@@ -47,14 +47,35 @@ func (r Releases) Swap(i, j int) {
 	r[i], r[j] = r[j], r[i]
 }
 
-func (releases Releases) GetLatestRelease(vrange string) (*Release, error) {
+func (releases Releases) GetLatestRelease(vrange, targetedVer string) (*Release, error) {
 	sort.Sort(releases)
-
+	var major, minor int
+	var err error
+	if targetedVer != "" {
+		splittedVer := strings.Split(targetedVer, ".")
+		if len(splittedVer) == 3 {
+			major, err = strconv.Atoi(splittedVer[0])
+			if err != nil {
+				targetedVer = ""
+			}
+			minor, _ = strconv.Atoi(splittedVer[1])
+			if err != nil {
+				targetedVer = ""
+			}
+		}
+	}
 	var lastRelease *Release
 	for _, r := range releases {
 		if r.Version.Prerelease() == "" {
-			lastRelease = r
-			break
+			if targetedVer == "" {
+				lastRelease = r
+				break
+			} else {
+				if r.Version.Major() == int64(major) && r.Version.Minor() == int64(minor) {
+					lastRelease = r
+					break
+				}
+			}
 		}
 	}
 
@@ -95,8 +116,9 @@ func (releases Releases) GetLatestRelease(vrange string) (*Release, error) {
 type Repository interface {
 	GetInfo() (string, bool, error)
 	GetCommits(sha string) ([]*Commit, error)
-	GetLatestRelease(vrange string, re *regexp.Regexp) (*Release, error)
-	CreateRelease(changelog string, newVersion *semver.Version, prerelease bool, branch, sha string) error
+
+	GetLatestRelease(vrange string, re *regexp.Regexp, pkg_name, lastVersionHotfix string) (*Release, error)
+	CreateRelease(changelog string, newVersion *semver.Version, prerelease bool, branch, sha string, currentSHA string, pkgName string) error
 	Owner() string
 	Repo() string
 	Provider() string
@@ -119,7 +141,6 @@ func ApplyChange(version *semver.Version, change Change, allowInitialDevelopment
 	if !allowInitialDevelopmentVersions && version.Major() == 0 {
 		change.Major = true
 	}
-
 	if allowInitialDevelopmentVersions && version.Major() == 0 && version.Minor() == 0 {
 		change.Minor = true
 	}
