@@ -57,7 +57,7 @@ func (repo *GitHubRepository) GetInfo() (string, bool, error) {
 	return branch, r.GetPrivate(), nil
 }
 
-func (repo *GitHubRepository) GetCommits(sha string) ([]*Commit, error) {
+func (repo *GitHubRepository) GetCommits(sha, pkg string) ([]*Commit, error) {
 	opts := &github.CommitsListOptions{
 		SHA:         sha,
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -68,7 +68,7 @@ func (repo *GitHubRepository) GetCommits(sha string) ([]*Commit, error) {
 	}
 	ret := make([]*Commit, len(commits))
 	for i, commit := range commits {
-		ret[i] = parseGithubCommit(commit)
+		ret[i] = parseGithubCommit(commit, pkg)
 	}
 	return ret, nil
 }
@@ -155,7 +155,7 @@ func (repo *GitHubRepository) CreateRelease(changelog string, newVersion *semver
 	return nil
 }
 
-func parseGithubCommit(commit *github.RepositoryCommit) *Commit {
+func parseGithubCommit(commit *github.RepositoryCommit, pkg string) *Commit {
 	c := new(Commit)
 	c.SHA = commit.GetSHA()
 	c.Raw = strings.Split(commit.Commit.GetMessage(), "\n")
@@ -163,13 +163,16 @@ func parseGithubCommit(commit *github.RepositoryCommit) *Commit {
 	if len(found) < 1 {
 		return c
 	}
-	c.Type = strings.ToLower(found[0][1])
-	c.Scope = found[0][2]
-	c.Message = found[0][3]
-	c.Change = Change{
-		Major: breakingPattern.MatchString(commit.Commit.GetMessage()),
-		Minor: c.Type == "feat",
-		Patch: c.Type == "fix",
+	if pkg != "" && pkg == found[0][2] {
+		c.Type = strings.ToLower(found[0][1])
+		c.Scope = found[0][2]
+		c.Message = found[0][3]
+
+		c.Change = Change{
+			Major: breakingPattern.MatchString(commit.Commit.GetMessage()),
+			Minor: c.Type == "feat",
+			Patch: c.Type == "fix",
+		}
 	}
 	return c
 }

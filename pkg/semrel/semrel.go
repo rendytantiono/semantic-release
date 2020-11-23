@@ -115,7 +115,7 @@ func (releases Releases) GetLatestRelease(vrange, targetedVer string) (*Release,
 
 type Repository interface {
 	GetInfo() (string, bool, error)
-	GetCommits(sha string) ([]*Commit, error)
+	GetCommits(sha string, pkg string) ([]*Commit, error)
 
 	GetLatestRelease(vrange string, re *regexp.Regexp, pkg_name, lastVersionHotfix string) (*Release, error)
 	CreateRelease(changelog string, newVersion *semver.Version, prerelease bool, branch, sha string, currentSHA string, pkgName string) error

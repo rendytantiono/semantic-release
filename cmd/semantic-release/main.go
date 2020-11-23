@@ -133,7 +133,7 @@ func cliHandler(c *cli.Context) error {
 	}
 
 	logger.Println("getting commits...")
-	commits, err := repo.GetCommits(currentSha)
+	commits, err := repo.GetCommits(currentSha, conf.Pkgname)
 	exitIfError(err)
 
 	logger.Println("calculating new version...")

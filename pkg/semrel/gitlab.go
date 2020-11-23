@@ -65,7 +65,7 @@ func (repo *GitLabRepository) GetInfo() (string, bool, error) {
 	return project.DefaultBranch, project.Visibility == gitlab.PrivateVisibility, nil
 }
 
-func (repo *GitLabRepository) GetCommits(sha string) ([]*Commit, error) {
+func (repo *GitLabRepository) GetCommits(sha, pkg string) ([]*Commit, error) {
 	opts := &gitlab.ListCommitsOptions{
 		ListOptions: gitlab.ListOptions{
 			Page:    1,
